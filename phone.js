@@ -57,11 +57,15 @@
     injectionDepth: 4,
     derivativePrompt: `你是写手，为杂志「正剧」续写配套的手机格式衍生内容。
 
-任务：阅读剧情、此前手机内容与当前状态，为目前为止最新的时间节点生成此时配套的手机衍生内容。
+任务：阅读此前手机内容与当前最新剧情，生成配套的手机衍生内容。
+- 内容代表当前剧情中，{{user}}的手机里的内容，所以应配合当前最新部分的正文，注意逻辑：
+    - 例如如果{{user}}目前和某角色正待在一起，那么他们不太可能进行手机联络。禁止最新正文中{{user}}跟角色说这话呢，结果手机这边角色来信息了
+    - 可以不更新消息、仅更新朋友圈或其它
+    - 例如本轮最新正文中，角色不在{{user}}身边，那ta可以主动来短信关心/邀约/唠嗑等
+    - 可以生成各种有趣的消息（比如朋友圈有商家打广告、某场所宣传他们的活动...）
 - 必须先输出且只输出一组 <status>。
 - 随后输出 1～2 个内容模块：<phone> 和 / 或 <moments>。
 - 内容可以补充角色近况、关系变化、伏笔或剧情余波；不得改写既定事实、凭空推进关键主线、替{{user}}写{{user}}自己的发言。
-- 内容代表当前剧情中，{{user}}的手机里的内容，所以应配合当前最新情节，注意逻辑；例如如果{{user}}目前和某角色正待在一起，那么他们这会不太可能进行手机联络。
 - 仅输出规定格式，不要解释、标题、Markdown、代码块或正剧叙述。
 
 格式：
@@ -149,7 +153,15 @@
         '- 只输出规定格式，不要解释、标题、Markdown、代码块或正剧叙述；文本字段中不要使用尖括号。',
       ].join('\n');
       const updatedTask = defaultConfig.derivativePrompt.slice(defaultConfig.derivativePrompt.indexOf('任务：'), defaultConfig.derivativePrompt.indexOf('\n\n格式：'));
-      config.derivativePrompt = config.derivativePrompt.replace(/\r\n/g, '\n').replace(previousTask, updatedTask);
+      const previousLatestTask = [
+        '任务：阅读剧情、此前手机内容与当前状态，为目前为止最新的时间节点生成此时配套的手机衍生内容。',
+        '- 必须先输出且只输出一组 <status>。',
+        '- 随后输出 1～2 个内容模块：<phone> 和 / 或 <moments>。',
+        '- 内容可以补充角色近况、关系变化、伏笔或剧情余波；不得改写既定事实、凭空推进关键主线、替{{user}}写{{user}}自己的发言。',
+        '- 内容代表当前剧情中，{{user}}的手机里的内容，所以应配合当前最新情节，注意逻辑；例如如果{{user}}目前和某角色正待在一起，那么他们这会不太可能进行手机联络。',
+        '- 仅输出规定格式，不要解释、标题、Markdown、代码块或正剧叙述。',
+      ].join('\n');
+      config.derivativePrompt = config.derivativePrompt.replace(/\r\n/g, '\n').replace(previousTask, updatedTask).replace(previousLatestTask, updatedTask);
       return config;
     }
     catch (_) { return { ...defaultConfig }; }
@@ -530,7 +542,7 @@
     const data = getPhoneData();
     const isInitial = !Object.values(data.chats || {}).some(messages => Array.isArray(messages) && messages.length)
       && !(data.moments || []).length && !Object.keys(data.status || {}).length && !Object.keys(data.dynamicContacts || {}).length;
-    const input = `<main_content>\n${mainContentForDerivative()}\n</main_content>\n\n<phone_history>\n${history || '无'}\n</phone_history>\n\n<current_status>\n时间：${status.time || ''}\n天气：${status.weather || ''}\n温度：${status.temperature || ''}\n</current_status>`;
+    const input = `<main_content>\n${mainContentForDerivative()}\n</main_content>\n\n<phone_history>\n${history || '无'}\n</phone_history>\n\n<previous_phone_status>\n以下为上次手机保存的状态，仅作为历史参考，不代表本轮最新剧情的当前状态。phone_history 中的状态与消息时间也都是历史记录。\n时间：${status.time || '未知'}\n天气：${status.weather || '未知'}\n温度：${status.temperature || '未知'}\n</previous_phone_status>\n\n本轮输出的 <status> 应以 main_content 中最新部分的正文为准；正文已推进时间或改变天气、温度时，应相应更新，不要被上次手机状态覆盖。正文未提供更新依据时可保留上次已知值，未知信息仍写“未知”，不要凭空推进时间或使用现实日期。`;
     const result = await runPhoneGeneration(generate, {
       should_silence: true,
       custom_api: customApi,
