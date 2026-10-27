@@ -197,7 +197,7 @@ ${AUTO_STATUS_GUIDANCE}
   function chatVariableApi() {
     try {
       const th = (typeof TavernHelper !== 'undefined' && TavernHelper) || PWin.TavernHelper;
-      return th && typeof th.getVariables === 'function' && typeof th.insertOrAssignVariables === 'function' ? th : null;
+      return th && typeof th.getVariables === 'function' && typeof th.replaceVariables === 'function' ? th : null;
     } catch (_) { return null; }
   }
   function readLegacyJson(key, fallback) {
@@ -226,7 +226,7 @@ ${AUTO_STATUS_GUIDANCE}
         const stored = variables[CHAT_DATA_VAR];
         if (stored && typeof stored === 'object' && !Array.isArray(stored)) return cleanSeedPhoneData(stored);
         const legacy = readLegacyPhoneData();
-        if (legacy) { const cleaned = cleanSeedPhoneData(legacy); api.insertOrAssignVariables({ [CHAT_DATA_VAR]: cleaned }, { type: 'chat' }); return cleaned; }
+        if (legacy) { const cleaned = cleanSeedPhoneData(legacy); api.replaceVariables({ ...variables, [CHAT_DATA_VAR]: cleaned }, { type: 'chat' }); return cleaned; }
         return {};
       } catch (error) { console.warn('[FloatingPhone] 读取聊天变量失败，暂时使用本地兼容存储', error); }
     }
@@ -248,7 +248,12 @@ ${AUTO_STATUS_GUIDANCE}
   function savePhoneData(data) {
     const api = chatVariableApi();
     if (api) {
-      try { api.insertOrAssignVariables({ [CHAT_DATA_VAR]: data }, { type: 'chat' }); return; }
+      try {
+        // 完整替换手机字段：递归合并会保留空对象中本应删除的聊天记录。
+        const variables = api.getVariables({ type: 'chat' }) || {};
+        api.replaceVariables({ ...variables, [CHAT_DATA_VAR]: data }, { type: 'chat' });
+        return;
+      }
       catch (error) { console.warn('[FloatingPhone] 写入聊天变量失败，暂时使用本地兼容存储', error); }
     }
     PWin.localStorage.setItem(chatStorageKey(), JSON.stringify(data.chats || {}));
